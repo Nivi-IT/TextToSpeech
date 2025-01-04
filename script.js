@@ -1,57 +1,67 @@
 const textarea = document.querySelector("textarea"),
-voiceList = document.querySelector("select"),
-speechBtn = document.querySelector("button");
+  voiceList = document.querySelector("select"),
+  speechBtn = document.querySelector("button");
 
 let synth = speechSynthesis,
-isSpeaking = true;
+  isSpeaking = true,
+  interval;
 
-voices();
-
-function voices(){
-    for(let voice of synth.getVoices()){
-        let selected = voice.name === "Google US English" ? "selected" : "";
-        let option = `<option value="${voice.name}" ${selected}>${voice.name} (${voice.lang})</option>`;
-        voiceList.insertAdjacentHTML("beforeend", option);
-    }
+function voices() {
+  let availableVoices = synth.getVoices();
+  if (availableVoices.length === 0) {
+    console.warn("No voices available for speech synthesis.");
+    return;
+  }
+  voiceList.innerHTML = ""; 
+  for (let voice of availableVoices) {
+    let selected = voice.name === "Google US English" ? "selected" : "";
+    let option = `<option value="${voice.name}" ${selected}>${voice.name} (${voice.lang})</option>`;
+    voiceList.insertAdjacentHTML("beforeend", option);
+  }
 }
 
 synth.addEventListener("voiceschanged", voices);
 
-function textToSpeech(text){
-    let utterance = new SpeechSynthesisUtterance(text);
-    for(let voice of synth.getVoices()){
-        if(voice.name === voiceList.value){
-            utterance.voice = voice;
-        }
-    }
-    synth.speak(utterance);
+function textToSpeech(text) {
+  let utterance = new SpeechSynthesisUtterance(text);
+  let selectedVoice = synth.getVoices().find((voice) => voice.name === voiceList.value);
+  if (selectedVoice) utterance.voice = selectedVoice;
+
+  synth.speak(utterance);
+
+  utterance.onend = () => {
+    clearInterval(interval);
+    speechBtn.innerHTML = `<i class="fas fa-volume-up"></i> Convert To Speech`;
+    isSpeaking = true;
+  };
 }
 
-speechBtn.addEventListener("click", e =>{
-    e.preventDefault();
-    if(textarea.value !== ""){
-        if(!synth.speaking){
-            textToSpeech(textarea.value);
-        }
-        if(textarea.value.length > 80){
-            setInterval(()=>{
-                if(!synth.speaking && !isSpeaking){
-                    isSpeaking = true;
-                    speechBtn.innerText = "Convert To Speech";
-                }else{
-                }
-            }, 500);
-            if(isSpeaking){
-                synth.resume();
-                isSpeaking = false;
-                speechBtn.innerText = "Pause Speech";
-            }else{
-                synth.pause();
-                isSpeaking = true;
-                speechBtn.innerText = "Resume Speech";
-            }
-        }else{
-            speechBtn.innerText = "Convert To Speech";
-        }
+speechBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+
+  if (textarea.value.trim() !== "") {
+    if (!synth.speaking) {
+      textToSpeech(textarea.value);
+      speechBtn.innerHTML = `<i class="fas fa-pause"></i> Pause Speech`;
+    } else if (isSpeaking) {
+      synth.pause();
+      isSpeaking = false;
+      speechBtn.innerHTML = `<i class="fas fa-play"></i> Resume Speech`;
+    } else {
+      synth.resume();
+      isSpeaking = true;
+      speechBtn.innerHTML = `<i class="fas fa-pause"></i> Pause Speech`;
     }
+
+    if (textarea.value.length > 80) {
+      clearInterval(interval); 
+      interval = setInterval(() => {
+        if (!synth.speaking && !isSpeaking) {
+          clearInterval(interval);
+          speechBtn.innerHTML = `<i class="fas fa-volume-up"></i> Convert To Speech`;
+          isSpeaking = true;
+        }
+      }, 500);
+    }
+  }
 });
